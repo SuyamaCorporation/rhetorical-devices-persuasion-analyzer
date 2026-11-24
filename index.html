@@ -1,0 +1,210 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>修辞技法・説得力スピーチアナライザー</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<style>
+  .hl-anaphora { background: rgba(99,102,241,0.3); border-bottom: 2px solid #6366f1; border-radius:2px; }
+  .hl-tricolon { background: rgba(16,185,129,0.3); border-bottom: 2px solid #10b981; border-radius:2px; }
+  .hl-hyperbole { background: rgba(239,68,68,0.3); border-bottom: 2px solid #ef4444; border-radius:2px; }
+  .hl-rhetorical { background: rgba(245,158,11,0.3); border-bottom: 2px solid #f59e0b; border-radius:2px; }
+  .hl-antithesis { background: rgba(236,72,153,0.3); border-bottom: 2px solid #ec4899; border-radius:2px; }
+  .hl-alliteration { background: rgba(14,165,233,0.3); border-bottom: 2px solid #0ea5e9; border-radius:2px; }
+</style>
+</head>
+<body class="bg-slate-900 text-slate-100 min-h-screen">
+<div class="max-w-4xl mx-auto p-4">
+  <h1 class="text-3xl font-bold text-center text-violet-300 mb-1">修辞技法アナライザー</h1>
+  <p class="text-center text-slate-400 mb-6 text-sm">スピーチ原稿の説得技法を検出・可視化</p>
+
+  <!-- Legend -->
+  <div class="flex flex-wrap gap-2 mb-4 justify-center">
+    <span class="px-2 py-1 rounded text-xs hl-anaphora">反復法（アナフォラ）</span>
+    <span class="px-2 py-1 rounded text-xs hl-tricolon">三段並列</span>
+    <span class="px-2 py-1 rounded text-xs hl-hyperbole">誇張法</span>
+    <span class="px-2 py-1 rounded text-xs hl-rhetorical">反語法</span>
+    <span class="px-2 py-1 rounded text-xs hl-antithesis">対比法</span>
+    <span class="px-2 py-1 rounded text-xs hl-alliteration">頭韻法</span>
+  </div>
+
+  <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+    <!-- Input -->
+    <div>
+      <label class="text-sm text-slate-400 mb-1 block">スピーチ原稿を入力</label>
+      <textarea id="speech-input" rows="12" class="w-full bg-slate-800 border border-slate-600 rounded-xl p-3 text-sm text-slate-100 resize-none focus:outline-none focus:border-violet-500" placeholder="例：私たちは夢を持っています。私たちは希望を持っています。私たちは未来を持っています。この国は百年後も輝き続けるでしょう。平和か戦争か、それが問題です。"></textarea>
+      <button onclick="analyze()" class="mt-2 w-full bg-violet-600 hover:bg-violet-500 text-white py-2 rounded-lg font-semibold text-sm" aria-label="分析する">分析する</button>
+      <button onclick="loadSample()" class="mt-1 w-full bg-slate-700 hover:bg-slate-600 text-slate-300 py-2 rounded-lg text-sm" aria-label="サンプルを読み込む">サンプルを読み込む</button>
+    </div>
+
+    <!-- Results -->
+    <div>
+      <div class="text-sm text-slate-400 mb-1">検出結果・頻度レポート</div>
+      <div id="results" class="bg-slate-800 rounded-xl p-3 h-48 overflow-y-auto text-sm text-slate-300">
+        分析待ち...
+      </div>
+      <div class="text-sm text-slate-400 mb-1 mt-3">ハイライト表示</div>
+      <div id="highlighted" class="bg-slate-800 rounded-xl p-3 text-sm leading-7 min-h-24 max-h-48 overflow-y-auto">
+        原稿を入力して「分析する」を押してください
+      </div>
+    </div>
+  </div>
+
+  <!-- Score -->
+  <div id="score-panel" class="mt-4 bg-slate-800 rounded-xl p-4 hidden">
+    <div class="flex items-center justify-between mb-2">
+      <span class="text-slate-300 font-semibold">説得力スコア</span>
+      <span id="persuasion-score" class="text-2xl font-bold text-violet-300"></span>
+    </div>
+    <div id="score-bar" class="h-3 rounded-full bg-slate-700 overflow-hidden">
+      <div id="score-fill" class="h-full bg-gradient-to-r from-violet-600 to-pink-500 transition-all duration-500" style="width:0%"></div>
+    </div>
+    <div id="score-advice" class="mt-2 text-xs text-slate-400"></div>
+  </div>
+</div>
+
+<script>
+const devices = [
+  {
+    name: '反復法（アナフォラ）', key: 'anaphora', cls: 'hl-anaphora',
+    desc: '文頭に同じ語句を繰り返す技法',
+    detect: (text) => {
+      const sentences = text.split(/[。！？\n]+/).filter(s => s.trim().length > 3);
+      const matches = [];
+      const wordMap = {};
+      sentences.forEach(s => {
+        const words = s.trim().split(/\s+/);
+        if (words[0]) {
+          wordMap[words[0]] = (wordMap[words[0]] || 0) + 1;
+        }
+        // Japanese sentence start
+        const jpStart = s.trim().substring(0, 4);
+        if (jpStart.length >= 2) wordMap[jpStart] = (wordMap[jpStart]||0)+1;
+      });
+      return Object.entries(wordMap).filter(([k,v]) => v >= 2 && k.length >= 2).map(([k]) => k);
+    }
+  },
+  {
+    name: '誇張法（ハイパーボリ）', key: 'hyperbole', cls: 'hl-hyperbole',
+    desc: '実際より大げさに表現する技法',
+    words: ['百年','千年','万','永遠','絶対','必ず','完全','最高','最大','最強','世界一','史上','究極','無限','全て','誰も']
+  },
+  {
+    name: '反語法', key: 'rhetorical', cls: 'hl-rhetorical',
+    desc: '疑問形で断定を強調する技法',
+    patterns: [/[誰何]が[^。？]*(?:できないのか|知らないのか|思わないのか|疑うのか)/g, /[^。]*ではないのか[。？]?/g, /[^。]*でしょうか[。？]/g]
+  },
+  {
+    name: '対比法（アンチテーゼ）', key: 'antithesis', cls: 'hl-antithesis',
+    desc: '対立する概念を並べて効果を出す',
+    pairs: [['平和','戦争'],['光','闇'],['希望','絶望'],['生','死'],['未来','過去'],['勝利','敗北'],['強','弱'],['愛','憎']]
+  },
+  {
+    name: '三段並列（トリコロン）', key: 'tricolon', cls: 'hl-tricolon',
+    desc: '3つの要素を並べてリズムを作る',
+    patterns: [/[\w぀-鿿]+、[\w぀-鿿]+、[\w぀-鿿]+/g]
+  }
+];
+
+function escapeHtml(s) {
+  return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+function analyze() {
+  const text = document.getElementById('speech-input').value.trim();
+  if (!text) return;
+
+  const counts = {};
+  const findings = [];
+
+  // Hyperbole
+  const hypDev = devices.find(d => d.key === 'hyperbole');
+  let hypCount = 0;
+  hypDev.words.forEach(w => { const re = new RegExp(w,'g'); const m = text.match(re); if(m) hypCount += m.length; });
+  counts.hyperbole = hypCount;
+  if (hypCount > 0) findings.push({ key:'hyperbole', count: hypCount });
+
+  // Rhetorical
+  let rhetCount = 0;
+  devices.find(d=>d.key==='rhetorical').patterns.forEach(p => {
+    const m = text.match(new RegExp(p.source, 'g'));
+    if (m) rhetCount += m.length;
+  });
+  counts.rhetorical = rhetCount;
+  if (rhetCount > 0) findings.push({ key:'rhetorical', count: rhetCount });
+
+  // Tricolon
+  let triCount = 0;
+  const triMatches = text.match(/[぀-鿿\w]+、[぀-鿿\w]+、[぀-鿿\w]+/g) || [];
+  triCount = triMatches.length;
+  counts.tricolon = triCount;
+  if (triCount > 0) findings.push({ key:'tricolon', count: triCount });
+
+  // Antithesis
+  let antCount = 0;
+  const antDev = devices.find(d=>d.key==='antithesis');
+  antDev.pairs.forEach(([a,b]) => {
+    if (text.includes(a) && text.includes(b)) antCount++;
+  });
+  counts.antithesis = antCount;
+  if (antCount > 0) findings.push({ key:'antithesis', count: antCount });
+
+  // Anaphora (simple: same 2+ chars at sentence start)
+  const sentences = text.split(/[。！？\n]+/).filter(s=>s.trim().length>2);
+  const starts = {};
+  sentences.forEach(s => { const k = s.trim().substring(0,4); starts[k] = (starts[k]||0)+1; });
+  let anapCount = Object.values(starts).filter(v=>v>=2).length;
+  counts.anaphora = anapCount;
+  if (anapCount > 0) findings.push({ key:'anaphora', count: anapCount });
+
+  // Build results
+  const devMap = {};
+  devices.forEach(d => devMap[d.key] = d);
+  const total = Object.values(counts).reduce((a,b)=>a+b, 0);
+  const score = Math.min(100, Math.round(total * 8 + findings.length * 5));
+
+  let resultHtml = `<div class="mb-2 font-semibold text-violet-300">検出技法: ${findings.length}種類 / 合計${total}箇所</div>`;
+  if (findings.length === 0) {
+    resultHtml += '<div class="text-slate-500">修辞技法が検出されませんでした。より説得力のある表現を試してみましょう。</div>';
+  } else {
+    findings.sort((a,b)=>b.count-a.count).forEach(f => {
+      const d = devMap[f.key];
+      resultHtml += `<div class="mb-1"><span class="inline-block w-24 text-xs px-1 py-0.5 rounded ${d.cls}">${d.name}</span> <span class="text-white font-mono">${f.count}件</span> <span class="text-slate-500 text-xs">— ${d.desc}</span></div>`;
+    });
+  }
+  document.getElementById('results').innerHTML = resultHtml;
+
+  // Highlight text
+  let hl = escapeHtml(text);
+  // Highlight hyperbole words
+  hypDev.words.forEach(w => {
+    hl = hl.replace(new RegExp(w,'g'), `<mark class="hl-hyperbole">${w}</mark>`);
+  });
+  // Highlight tricolon
+  triMatches.forEach(m => {
+    hl = hl.replace(escapeHtml(m), `<mark class="hl-tricolon">${escapeHtml(m)}</mark>`);
+  });
+  document.getElementById('highlighted').innerHTML = hl.replace(/\n/g,'<br>');
+
+  // Score
+  document.getElementById('score-panel').classList.remove('hidden');
+  document.getElementById('persuasion-score').textContent = score + '点';
+  document.getElementById('score-fill').style.width = score + '%';
+  const advice = score < 30 ? '技法が少なめです。反復法や三段並列を追加してみましょう。'
+    : score < 60 ? '良いスタートです。対比法や誇張法で印象を強化できます。'
+    : score < 80 ? '説得力の高いスピーチです！バランスよく技法が使われています。'
+    : '非常に説得力の高いスピーチです。聴衆を引き込む力があります！';
+  document.getElementById('score-advice').textContent = advice;
+}
+
+function loadSample() {
+  document.getElementById('speech-input').value = `私たちは夢を持っています。私たちは希望を持っています。私たちは未来を持っています。
+この国は百年後も輝き続けるでしょう。誰がその未来を疑うのでしょうか。
+平和か戦争か、光か闇か、それが今私たちに問われています。
+勇気、知恵、行動力、この三つが私たちの武器です。
+絶対に諦めてはなりません。必ず道は開けます。世界一の国を目指しましょう。`;
+}
+</script>
+</body>
+</html>
